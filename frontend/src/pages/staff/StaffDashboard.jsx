@@ -11,11 +11,15 @@ export default function StaffDashboard() {
   function load() {
     api.get("/events/mine" + (date ? `?date=${date}` : "")).then((evs) => {
       setEvents(evs);
-      if (evs.length && !selected) setSelected(evs[0]._id);
+      // keep the current selection if it's still in the (filtered) list, else pick the first
+      setSelected((cur) => (evs.some((e) => e._id === cur) ? cur : evs[0]?._id || ""));
     });
   }
   useEffect(load, [date]);
-  useEffect(() => { if (selected) api.get(`/events/${selected}/dayof`).then(setDayof); }, [selected]);
+  useEffect(() => {
+    if (selected) api.get(`/events/${selected}/dayof`).then(setDayof);
+    else setDayof(null); // clear stats when no event is in the filtered list
+  }, [selected]);
 
   return (
     <>

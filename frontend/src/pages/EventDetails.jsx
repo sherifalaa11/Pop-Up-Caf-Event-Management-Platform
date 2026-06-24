@@ -237,10 +237,13 @@ function Tasks({ id, tasks, staff, reload, push }) {
 }
 
 /* ---------------- Budget ---------------- */
+const BLANK_EXPENSE = { category: "", description: "", amount: "", date: "" };
+
 function BudgetTab({ id, data, reload, push }) {
   const [plannedTotal, setPlannedTotal] = useState("");
   const [categories, setCategories] = useState([]);
-  const [expense, setExpense] = useState({ category: "", description: "", amount: "", date: "" });
+  const [expense, setExpense] = useState(BLANK_EXPENSE);
+  const [editingId, setEditingId] = useState(null); // expense being edited (null = creating)
 
   useEffect(() => {
     if (data) {
@@ -260,22 +263,51 @@ function BudgetTab({ id, data, reload, push }) {
     push("Budget saved");
     reload();
   }
-  async function addExpense(e) {
+  function removeCategory(i) {
+    const next = categories.filter((_, idx) => idx !== i);
+    setCategories(next.length ? next : [{ name: "", plannedAmount: "" }]);
+  }
+
+  // create OR edit an actual expense (FR: "create, edit ... records of actual expenses")
+  async function submitExpense(e) {
     e.preventDefault();
-    await api.post(`/budget/event/${id}/expense`, { ...expense, amount: Number(expense.amount) || 0 });
-    setExpense({ category: "", description: "", amount: "", date: "" });
-    push("Expense recorded");
+    const body = { ...expense, amount: Number(expense.amount) || 0 };
+    if (editingId) {
+      await api.put(`/budget/expense/${editingId}`, body);
+      push("Expense updated");
+    } else {
+      await api.post(`/budget/event/${id}/expense`, body);
+      push("Expense recorded");
+    }
+    setExpense(BLANK_EXPENSE);
+    setEditingId(null);
     reload();
   }
-  async function delExpense(eid) { await api.del(`/budget/expense/${eid}`); reload(); }
+  function editExpense(ex) {
+    setEditingId(ex._id);
+    setExpense({ category: ex.category || "", description: ex.description || "", amount: ex.amount ?? "", date: ex.date || "" });
+  }
+  function cancelEdit() { setEditingId(null); setExpense(BLANK_EXPENSE); }
+  async function delExpense(eid) {
+    await api.del(`/budget/expense/${eid}`);
+    if (editingId === eid) cancelEdit();
+    reload();
+  }
 
   const s = data.summary;
+  // overall planned-vs-actual difference across the decomposition
+  const totals = s.byCategory.reduce(
+    (a, c) => ({ planned: a.planned + (c.planned || 0), actual: a.actual + (c.actual || 0), difference: a.difference + (c.difference || 0) }),
+    { planned: 0, actual: 0, difference: 0 }
+  );
+  const diffColor = (n) => (n < 0 ? "var(--red)" : "var(--green)");
+
   return (
     <>
       <div className="stat-grid">
         <Stat icon="money" value={`$${s.plannedTotal}`} label="Planned Budget" accent />
         <Stat icon="money" value={`$${s.totalSpent}`} label="Actual Spent" />
-        <Stat icon="percent" value={`$${s.remaining}`} label="Remaining" />
+        <Stat icon="percent" value={`$${s.remaining}`} label={s.remaining < 0 ? "Over Budget" : "Remaining"} />
       </div>
 
       <div className="card-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
@@ -288,6 +320,7 @@ function BudgetTab({ id, data, reload, push }) {
               <div className="row mb" key={i}>
                 <input placeholder="Category" value={c.name} onChange={(e) => setCategories(categories.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} />
                 <input type="number" placeholder="$" value={c.plannedAmount} onChange={(e) => setCategories(categories.map((x, idx) => idx === i ? { ...x, plannedAmount: e.target.value } : x))} style={{ maxWidth: 110 }} />
+                <button type="button" className="btn btn-sm btn-danger" title="Remove category" onClick={() => removeCategory(i)}>✕</button>
               </div>
             ))}
             <button type="button" className="btn btn-sm btn-outline" onClick={() => setCategories([...categories, { name: "", plannedAmount: "" }])}>+ Category</button>
@@ -299,30 +332,46 @@ function BudgetTab({ id, data, reload, push }) {
             <table className="table">
               <thead><tr><th>Category</th><th>Planned</th><th>Actual</th><th>Diff</th></tr></thead>
               <tbody>
-                {s.byCategory.map((c, i) => (
-                  <tr key={i}><td>{c.name}</td><td>${c.planned}</td><td>${c.actual}</td><td style={{ color: c.difference < 0 ? "var(--danger)" : "var(--success)" }}>${c.difference}</td></tr>
+                {s.byCategory.length === 0 ? (
+                  <tr><td colSpan={4} className="muted small">Add categories above to see the breakdown.</td></tr>
+                ) : s.byCategory.map((c, i) => (
+                  <tr key={i}><td>{c.name}</td><td>${c.planned}</td><td>${c.actual}</td><td style={{ color: diffColor(c.difference), fontWeight: 600 }}>${c.difference}</td></tr>
                 ))}
               </tbody>
+              {s.byCategory.length > 0 && (
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--border-2)" }}>
+                    <td><b>Total</b></td><td><b>${totals.planned}</b></td><td><b>${totals.actual}</b></td>
+                    <td style={{ color: diffColor(totals.difference), fontWeight: 700 }}>${totals.difference}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
 
         <div className="card">
           <h3>Actual Expenses</h3>
-          <form onSubmit={addExpense}>
+          <form onSubmit={submitExpense}>
             <div className="form-grid">
               <Field label="Category"><input value={expense.category} onChange={(e) => setExpense({ ...expense, category: e.target.value })} /></Field>
               <Field label="Amount ($)"><input type="number" value={expense.amount} onChange={(e) => setExpense({ ...expense, amount: e.target.value })} required /></Field>
             </div>
             <Field label="Description"><input value={expense.description} onChange={(e) => setExpense({ ...expense, description: e.target.value })} /></Field>
             <Field label="Date"><input type="date" value={expense.date} onChange={(e) => setExpense({ ...expense, date: e.target.value })} /></Field>
-            <button className="btn btn-primary btn-block">Record Expense</button>
+            <div className="row">
+              <button className="btn btn-primary" style={{ flex: 1 }}>{editingId ? "Update Expense" : "Record Expense"}</button>
+              {editingId && <button type="button" className="btn btn-outline" onClick={cancelEdit}>Cancel</button>}
+            </div>
           </form>
           <div className="divider" />
           {data.expenses.length === 0 ? <p className="muted small">No expenses yet.</p> : data.expenses.map((ex) => (
-            <div className="list-item" key={ex._id}>
+            <div className={`list-item ${editingId === ex._id ? "editing" : ""}`} key={ex._id} style={editingId === ex._id ? { background: "var(--accent-soft)", borderRadius: 8 } : undefined}>
               <div><b>${ex.amount}</b> · {ex.category}<div className="small muted">{ex.description} {ex.date}</div></div>
-              <span className="btn btn-sm btn-danger" onClick={() => delExpense(ex._id)}>✕</span>
+              <div className="row">
+                <span className="btn btn-sm btn-outline" onClick={() => editExpense(ex)}>Edit</span>
+                <span className="btn btn-sm btn-danger" onClick={() => delExpense(ex._id)}>✕</span>
+              </div>
             </div>
           ))}
         </div>

@@ -2,7 +2,9 @@
 // downloadable PNG image or PDF file (user journey: "export the layout design
 // as a picture or PDF file"). The layout is rebuilt as an SVG from the elements
 // array so the export is crisp and resolution-independent.
-import { jsPDF } from "jspdf";
+//
+// NOTE: jsPDF is imported dynamically (only when a PDF is actually exported) so
+// the ~370 KB library never loads on initial page load / app startup.
 
 // Colours must match the on-screen element styles in index.css (.layout-el.*)
 const COLORS = {
@@ -110,6 +112,7 @@ export async function exportLayoutPNG(elements, filename = "venue-layout.png") {
 
 // Export the layout as a PDF (title + the rendered floor plan image).
 export async function exportLayoutPDF(elements, filename = "venue-layout.pdf", title = "Venue Layout") {
+  const { jsPDF } = await import("jspdf"); // loaded on demand, not at app startup
   const { width, height } = measureCanvas();
   const svg = buildLayoutSVG(elements, width, height);
   const canvas = await svgToCanvas(svg, width, height, 2);
