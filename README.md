@@ -30,7 +30,7 @@ document for all five stakeholder roles.
 
 | Component | Technology |
 |-----------|-----------|
-| Frontend | React 19, Vite, React Router 7 (plain `fetch`, no extra UI library) |
+| Frontend | React 19, Vite, React Router 7 (plain `fetch`, no UI library; `jspdf` only for venue-layout PDF export) |
 | Backend | Node.js, Express |
 | Database | MongoDB + Mongoose |
 | Auth | JWT (`jsonwebtoken`) + password hashing (`bcryptjs`) |
@@ -55,8 +55,9 @@ Pop-Up-Caf-Event-Management-Platform/
         ├── auth.jsx           # AuthContext (login/register/logout in localStorage)
         ├── App.jsx            # routes + role-based layout
         ├── index.css          # café-themed design system
+        ├── lib/layoutExport.js # venue layout → PNG picture / PDF file export helpers
         ├── components/        # Sidebar, Layout, ProtectedRoute, LayoutDesigner, Toast, ui
-        └── pages/             # role-grouped pages (organizer, staff/, vendor/, guest/, owner/)
+        └── pages/             # role-grouped pages (incl. DesignLayout = "Venue Layout")
 ```
 
 ---
@@ -95,15 +96,17 @@ Open **http://localhost:5173** and log in with one of the demo accounts below.
 
 ## 🔑 Demo Accounts
 
-All demo accounts use the password **`password123`**.
+There is **one primary login per role** (the five below) — all using the password **`password123`**.
+The seed also adds supporting accounts (extra staff/vendors/guests/owner) so that every list,
+filter and dashboard is populated with data.
 
-| Role | Email |
-|------|-------|
-| Event Organizer | `organizer@popeyez.com` |
-| Venue Owner | `owner@popeyez.com` (also `owner2@popeyez.com`) |
-| Vendor / Supplier | `vendor@popeyez.com` (also `vendor2@popeyez.com`, `vendor3@popeyez.com`) |
-| Team Member / Staff | `staff@popeyez.com` (also `staff2@popeyez.com` … `staff5@popeyez.com`) |
-| Guest | `guest@popeyez.com` (also `guest2@popeyez.com`) |
+| Role | Primary login | Extra accounts |
+|------|---------------|----------------|
+| Event Organizer | `organizer@popeyez.com` | — |
+| Team Member / Staff | `staff@popeyez.com` | `staff2@popeyez.com` … `staff5@popeyez.com` |
+| Vendor / Supplier | `vendor@popeyez.com` | `vendor2@popeyez.com`, `vendor3@popeyez.com` |
+| Guest | `guest@popeyez.com` | `guest2@popeyez.com` |
+| Venue Owner | `owner@popeyez.com` | `owner2@popeyez.com` |
 
 After logging in you are taken to the home page for your role; the sidebar shows only the
 features relevant to that role.
@@ -140,9 +143,10 @@ Sensible defaults are baked into the code, so the app runs even without a `.env`
 
 - **Event Organizer** — register/login, manage stakeholder accounts (create + deactivate +
   permissions), browse/filter/shortlist venues, request bookings, create events, schedule &
-  milestones, assign & track tasks, budgets & expenses, drag-and-drop venue layout, send
-  sourcing requests, review invoices, invite guests, day-of dashboard & communications,
-  feedback & reports.
+  milestones, assign & track tasks, budgets & expenses, **design the venue layout on a dedicated
+  "Venue Layout" page (drag-and-drop floor plan, share with the setup team, export as a PNG picture
+  or a PDF file)**, send sourcing requests, review invoices, invite guests, day-of dashboard &
+  communications, feedback & reports.
 - **Team Member / Staff** — login, see assigned events & tasks, update task status, view the
   shared floor plan, check guests in, mark vendor arrivals, day-of dashboard.
 - **Vendor / Supplier** — login/register, edit profile (supplies & pricing), accept/decline
@@ -184,7 +188,7 @@ main API endpoint and the UI location.
 | FR-21 | Create & manage budget | `PUT /api/budget/event/:id` | Event → Budget |
 | FR-22 | Record expenses | `POST /api/budget/event/:id/expense` | Event → Budget |
 | FR-23 | Budget summary & remaining balance | `GET /api/budget/event/:id` | Event → Budget |
-| FR-24 | Design seating/booth layout | `PUT /api/events/:id/layout` | Event → Layout |
+| FR-24 | Design seating/booth layout (drag & drop, export PNG/PDF) | `PUT /api/events/:id/layout` | Organizer → **Venue Layout** (and Event → Layout) |
 | FR-25 | Team access shared layout | `GET /api/events/:id/layout` | Staff → Floor Plan |
 | FR-26 | Monitor activities from a dashboard | `GET /api/events/dashboard` | Organizer → Dashboard |
 | FR-27 | Track task completion & vendor arrivals | `GET /api/events/:id/dayof` | Event → Day-of |
@@ -244,8 +248,11 @@ locally with no accounts, secrets, or extra setup:
 - **Invoice attachments** are provided as a **link** (URL to an itemized breakdown / receipt) rather
   than an uploaded file.
 - **Password reset** is an in-app form (enter email + new password) rather than an emailed link.
-- **Report export** produces a **CSV download** (attendance, financial, venue performance); “PDF” is
-  done via the browser’s Print dialog (Print → Save as PDF), which also exports the venue layout.
+- **Report export** produces a **CSV download** (attendance, financial, venue performance); the
+  report “PDF” is done via the browser’s Print dialog (Print → Save as PDF).
+- **Venue layout export** produces a **real downloadable PNG picture and PDF file** (built from the
+  layout via SVG → canvas, with `jspdf` for the PDF) — see Organizer → Venue Layout / Event → Layout
+  and Staff → Floor Plan.
 - **Real-time dashboards** refresh on page load / via a Refresh button (polling), not WebSockets.
 - **Automatic 24h backups (NFR-03)** are treated as an operational task (e.g. a scheduled
   `mongodump`) rather than an in-app feature.

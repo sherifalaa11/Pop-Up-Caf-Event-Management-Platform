@@ -13,6 +13,7 @@ import EventDetails from "./pages/EventDetails";
 import Venues from "./pages/Venues";
 import VenueDetails from "./pages/VenueDetails";
 import Bookings from "./pages/Bookings";
+import DesignLayout from "./pages/DesignLayout";
 import Vendors from "./pages/Vendors";
 import Guests from "./pages/Guests";
 import Team from "./pages/Team";
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventDetails />} />
+          <Route path="/design-layout" element={<DesignLayout />} />
           <Route path="/venues" element={<Venues />} />
           <Route path="/venues/:id" element={<VenueDetails />} />
           <Route path="/bookings" element={<Bookings />} />

@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast";
 import { Badge, Loading, Empty, Field, Stat, Stars } from "../components/ui";
 import Icon from "../components/Icon";
 import LayoutDesigner from "../components/LayoutDesigner";
+import { exportLayoutPNG, exportLayoutPDF } from "../lib/layoutExport";
 
 const TABS = ["Overview", "Tasks", "Budget", "Layout", "Guests", "Sourcing", "Day-of", "Feedback"];
 
@@ -333,16 +334,32 @@ function BudgetTab({ id, data, reload, push }) {
 /* ---------------- Layout ---------------- */
 function LayoutTab({ id, event, push }) {
   const [elements, setElements] = useState(event.layout?.elements || []);
+  const [busy, setBusy] = useState(false);
   async function save() {
     await api.put(`/events/${id}/layout`, { elements });
     push("Layout saved & shared with the team");
+  }
+  async function doExport(kind) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const base = (event.name || "venue-layout").replace(/\s+/g, "-").toLowerCase();
+      if (kind === "png") await exportLayoutPNG(elements, `${base}-layout.png`);
+      else await exportLayoutPDF(elements, `${base}-layout.pdf`, `${event.name || "Venue"} — Floor Plan`);
+      push(`Exported layout as ${kind.toUpperCase()}`);
+    } catch {
+      push("Could not export the layout");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <div className="card">
       <div className="between mb">
         <h3 style={{ margin: 0 }}>Venue Layout Designer</h3>
-        <div className="row">
-          <button className="btn btn-outline btn-sm" onClick={() => window.print()}>🖨 Export (Print/PDF)</button>
+        <div className="row wrap">
+          <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => doExport("png")}>🖼 Export PNG</button>
+          <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => doExport("pdf")}>📄 Export PDF</button>
           <button className="btn btn-primary btn-sm" onClick={save}>Save & Share</button>
         </div>
       </div>
